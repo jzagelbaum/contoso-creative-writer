@@ -10,10 +10,11 @@ from agents.product import product
 from agents.writer import writer
 # from agents.designer import designer
 from agents.editor import editor
+from agents.publisher import publisher
 from evaluate.evaluators import evaluate_article_in_background
 from prompty.tracer import trace, Tracer, console_tracer, PromptyTracer
 
-types = Literal["message", "researcher", "marketing", "designer","writer", "editor", "error", "partial", ]
+types = Literal["message", "researcher", "marketing", "designer","writer", "editor", "publisher", "error", "partial", ]
 
 class Message(BaseModel):
     type: types
@@ -59,6 +60,9 @@ def send_products(product_result):
 
 def send_writer(full_result):
     return json.dumps(("writer", full_result))
+
+def send_publisher(publisher_result):
+    return json.dumps(("publisher", publisher_result))
 
 def building_agents_message():
     return Message(
@@ -112,7 +116,7 @@ def create(research_context, product_context, assignment_context, evaluate=False
 
     retry_count = 0
     while(str(editor_response["decision"]).lower().startswith("accept")):
-        yield ("message", f"Sending editor feedback ({retry_count + 1})...")
+        yield Message(type="message", message=f"Sending editor feedback ({retry_count + 1})...").to_json_line()
 
         # Regenerate with feedback loop
         researchFeedback = editor_response.get("researchFeedback", "No Feedback")
@@ -142,6 +146,12 @@ def create(research_context, product_context, assignment_context, evaluate=False
 
         yield complete_message("editor", editor_response)
         yield complete_message("writer", {"complete": True})
+    
+    # After editor approves or max retries, publish the final article
+    yield start_message("publisher")
+    publisher_response = publisher.publish(processed_writer_result['article'])
+    yield complete_message("publisher", publisher_response)
+    yield send_publisher(publisher_response)
 
     #these need to be yielded for calling evals from evaluate.evaluate
     yield send_research(research_result)
