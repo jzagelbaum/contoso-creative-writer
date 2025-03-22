@@ -9,9 +9,7 @@ STYLE_GUIDE = """# Contoso Style Guide
 - Use H2 for main headings and H3 for subheadings
 - All product names should be in bold
 - All links should use the format [text](url)
-- Add the Contoso logo at the top of the article
-- Include a "Share this article" section at the bottom
-- Use the Contoso color scheme: #0078D4 for headings, #333333 for body text"""
+- Include a "Share this article" section at the bottom"""
 
 @trace
 def publish(article, feedback="No Feedback"):
@@ -32,14 +30,12 @@ def publish(article, feedback="No Feedback"):
             result += str(chunk)
 
         # Write to file if output_file is provided
-        file_path = None
-        output_file = "publisher_output.md"
+        output_file = "../../publisher_output.md"
         if output_file:
             try:
                 output_path = Path(output_file)
                 with open(output_path, "w", encoding="utf-8") as f:
                     f.write(result)
-                file_path = str(output_path.absolute())
             except Exception as e:
                 feedback += f"\nError writing to file: {str(e)}"
 

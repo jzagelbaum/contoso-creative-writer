@@ -47,7 +47,6 @@ def complete_message(type: types, result):
         type=type, message=f"Completed {type} task", data=result
     ).to_json_line()
 
-
 def error_message(error: Exception):
     return Message(
         type="error", message="An error occurred.", data={"error": str(error)}
@@ -161,14 +160,19 @@ def create(research_context, product_context, assignment_context, evaluate=False
     
     # After editor approves or max retries, publish the final article
     yield start_message("publisher")
-    publisher_response = publisher.publish(processed_writer_result['article'])
-    yield complete_message("publisher", {"response": publisher_response})
-    yield send_publisher({"response": publisher_response})
+    publisher_result = publisher.publish(processed_writer_result['article'])
+    yield complete_message("publisher", {"response": publisher_result})
+    # new: ensure publish output is sent to the web UI
+    full_result = " "
+    for item in publisher_result:
+        full_result = full_result + f'{item}'
+        yield complete_message("partial", {"text": item})
 
     #these need to be yielded for calling evals from evaluate.evaluate
     yield send_research(research_result)
     yield send_products(product_result)
-    yield send_writer(full_result) 
+    yield send_writer(full_result)
+    yield send_publisher({"response": publisher_result})
 
     if evaluate:
         print("Evaluating article...")

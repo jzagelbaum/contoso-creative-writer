@@ -52,6 +52,8 @@ export const Debug = () => {
         return "bg-violet-200 text-zinc-600";
       case "editor":
         return "bg-amber-200 text-zinc-600";
+      case "publisher":
+        return "bg-teal-200 text-zinc-600";
       case "error":
         return "bg-red-200 text-zinc-600";
       default:
