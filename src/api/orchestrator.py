@@ -3,6 +3,7 @@ from prompty.tracer import trace
 from pydantic import BaseModel, Field
 import logging
 import json
+from azure.core.exceptions import ResourceNotFoundError
 
 # agents
 from agents.researcher import researcher
@@ -81,7 +82,18 @@ def create(research_context, product_context, assignment_context, evaluate=False
     yield complete_message("researcher", research_result)
 
     yield start_message("marketing")
-    product_result = product.find_products(product_context)
+    try:
+        product_result = product.find_products(product_context)
+    except ResourceNotFoundError as e:
+        logging.error(f"Product search failed: {str(e)}")
+        # Provide fallback product data
+        product_result = {
+            "products": [
+                {"id": "fallback-1", "name": "Fallback Tent", "description": "A reliable tent for all seasons", "price": "$199.99", "category": "Tents"},
+                {"id": "fallback-2", "name": "Cozy Sleeping Bag", "description": "Warm sleeping bag for cold weather", "price": "$89.99", "category": "Sleeping Bags"}
+            ],
+            "summary": "Fallback product data used due to search service unavailability."
+        }
     yield complete_message("marketing", product_result)
 
     yield start_message("writer")
@@ -150,8 +162,8 @@ def create(research_context, product_context, assignment_context, evaluate=False
     # After editor approves or max retries, publish the final article
     yield start_message("publisher")
     publisher_response = publisher.publish(processed_writer_result['article'])
-    yield complete_message("publisher", publisher_response)
-    yield send_publisher(publisher_response)
+    yield complete_message("publisher", {"response": publisher_response})
+    yield send_publisher({"response": publisher_response})
 
     #these need to be yielded for calling evals from evaluate.evaluate
     yield send_research(research_result)

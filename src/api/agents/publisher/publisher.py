@@ -4,75 +4,66 @@ from pathlib import Path
 import prompty
 from prompty.tracer import trace
 
-
+# Define style guide as a constant
+STYLE_GUIDE = """# Contoso Style Guide
+- Use H2 for main headings and H3 for subheadings
+- All product names should be in bold
+- All links should use the format [text](url)
+- Add the Contoso logo at the top of the article
+- Include a "Share this article" section at the bottom
+- Use the Contoso color scheme: #0078D4 for headings, #333333 for body text"""
 
 @trace
-def publish(article, styleGuide, feedback="No Feedback"):
-    # TODO: Update this once we have the logic to parse http error codes
+def publish(article, feedback="No Feedback"):
     try:
-        result = prompty.execute(
+        stream_result = prompty.execute(
             "publisher.prompty",
             parameters={"stream": True},
             inputs={
                 "article": article,
-                "styleGuide": styleGuide,
+                "styleGuide": STYLE_GUIDE,
                 "feedback": feedback,
             },
         )
+        
+        # Collect the stream content into a string
+        result = ""
+        for chunk in stream_result:
+            result += str(chunk)
+
+        # Write to file if output_file is provided
+        file_path = None
+        output_file = "publisher_output.md"
+        if output_file:
+            try:
+                output_path = Path(output_file)
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(result)
+                file_path = str(output_path.absolute())
+            except Exception as e:
+                feedback += f"\nError writing to file: {str(e)}"
+
     except Exception as e:
-        result = {
-            f"An exception occured: {str(e)}"
-        }
+        result = f"An exception occured: {str(e)}"
+    
     return result
-
-def process(formatted_content):
-    # parse string this character --- , formatted article and feedback
-    result = formatted_content.split("---")
-    formatted_article = str(result[0]).strip()
-    if len(result) > 1:
-        feedback = str(result[1]).strip()
-    else:
-        feedback = "No Feedback"
-
-    return {
-        "formatted_article": formatted_article,
-        "feedback": feedback,
-    }
-
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()
     
-    base = Path(__file__).parent
-
-    # First get the article from the writer
-    from writer import write, process as writer_process
+    # Simple test article
+    sample_article = """
+    # Winter Camping Trends
     
-    researchContext = (
-        "Can you find the latest camping trends and what folks are doing in the winter?"
-    )
-    research = json.loads(Path(base / "research.json").read_text())
-    productContext = "Can you use a selection of tents and backpacks as context?"
-    products = json.loads(Path(base / "products.json").read_text())
-    assignment = "Write a fun and engaging article that includes the research and product information. The article should be between 800 and 1000 words."
+    Camping has become increasingly popular in winter months. Many outdoor enthusiasts are discovering the beauty of snow-covered landscapes.
     
-    writer_result = write(researchContext, research, productContext, products, assignment)
-    processed_writer = writer_process(writer_result)
-    article = processed_writer["article"]
-    
-    # Now format the article using the publisher agent
-    styleGuide = """
-    # Contoso Style Guide
-    - Use H2 for main headings and H3 for subheadings
-    - All product names should be in bold
-    - All links should use the format [text](url)
-    - Add the Contoso logo at the top of the article
-    - Include a "Share this article" section at the bottom
-    - Use the Contoso color scheme: #0078D4 for headings, #333333 for body text
+    Our Contoso Extreme Weather Tent and Contoso Alpine Backpack are perfect companions for winter adventures.
     """
     
-    result = publish(article, styleGuide)
-    formatted_content = process(result)
-    print(formatted_content["formatted_article"])
+    # Test publishing functionality
+    result = publish(sample_article)
+    
+    # Still print to console for reference
+    print(result)
