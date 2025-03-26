@@ -3,6 +3,7 @@ from prompty.tracer import trace
 from pydantic import BaseModel, Field
 import logging
 import json
+from azure.core.exceptions import ResourceNotFoundError
 
 # agents
 from agents.researcher import researcher
@@ -10,10 +11,11 @@ from agents.product import product
 from agents.writer import writer
 # from agents.designer import designer
 from agents.editor import editor
+from agents.publisher import publisher
 from evaluate.evaluators import evaluate_article_in_background
 from prompty.tracer import trace, Tracer, console_tracer, PromptyTracer
 
-types = Literal["message", "researcher", "marketing", "designer","writer", "editor", "error", "partial", ]
+types = Literal["message", "researcher", "marketing", "designer","writer", "editor", "publisher", "error", "partial", ]
 
 class Message(BaseModel):
     type: types
@@ -45,7 +47,6 @@ def complete_message(type: types, result):
         type=type, message=f"Completed {type} task", data=result
     ).to_json_line()
 
-
 def error_message(error: Exception):
     return Message(
         type="error", message="An error occurred.", data={"error": str(error)}
@@ -59,6 +60,9 @@ def send_products(product_result):
 
 def send_writer(full_result):
     return json.dumps(("writer", full_result))
+
+def send_publisher(publisher_result):
+    return json.dumps(("publisher", publisher_result))
 
 def building_agents_message():
     return Message(
@@ -77,7 +81,18 @@ def create(research_context, product_context, assignment_context, evaluate=False
     yield complete_message("researcher", research_result)
 
     yield start_message("marketing")
-    product_result = product.find_products(product_context)
+    try:
+        product_result = product.find_products(product_context)
+    except ResourceNotFoundError as e:
+        logging.error(f"Product search failed: {str(e)}")
+        # Provide fallback product data
+        product_result = {
+            "products": [
+                {"id": "fallback-1", "name": "Fallback Tent", "description": "A reliable tent for all seasons", "price": "$199.99", "category": "Tents"},
+                {"id": "fallback-2", "name": "Cozy Sleeping Bag", "description": "Warm sleeping bag for cold weather", "price": "$89.99", "category": "Sleeping Bags"}
+            ],
+            "summary": "Fallback product data used due to search service unavailability."
+        }
     yield complete_message("marketing", product_result)
 
     yield start_message("writer")
@@ -112,7 +127,7 @@ def create(research_context, product_context, assignment_context, evaluate=False
 
     retry_count = 0
     while(str(editor_response["decision"]).lower().startswith("accept")):
-        yield ("message", f"Sending editor feedback ({retry_count + 1})...")
+        yield Message(type="message", message=f"Sending editor feedback ({retry_count + 1})...").to_json_line()
 
         # Regenerate with feedback loop
         researchFeedback = editor_response.get("researchFeedback", "No Feedback")
@@ -142,11 +157,22 @@ def create(research_context, product_context, assignment_context, evaluate=False
 
         yield complete_message("editor", editor_response)
         yield complete_message("writer", {"complete": True})
+    
+    # After editor approves or max retries, publish the final article
+    yield start_message("publisher")
+    publisher_result = publisher.publish(processed_writer_result['article'])
+    yield complete_message("publisher", {"response": publisher_result})
+    # new: ensure publish output is sent to the web UI
+    full_result = " "
+    for item in publisher_result:
+        full_result = full_result + f'{item}'
+        yield complete_message("partial", {"text": item})
 
     #these need to be yielded for calling evals from evaluate.evaluate
     yield send_research(research_result)
     yield send_products(product_result)
-    yield send_writer(full_result) 
+    yield send_writer(full_result)
+    yield send_publisher({"response": publisher_result})
 
     if evaluate:
         print("Evaluating article...")

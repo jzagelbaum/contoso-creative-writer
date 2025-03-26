@@ -41,12 +41,12 @@ Write-Host "--- ✅ | 1. Post-provisioning - env configured ---"
 Write-Host 'Installing dependencies from "requirements.txt"'
 python -m pip install -r src/api/requirements.txt > $null
 python -m pip install ipython ipykernel > $null      # Install ipython and ipykernel
-ipython kernel install --name=python3 --user > $null # Configure the IPython kernel
-jupyter kernelspec list > $null                      # Verify kernelspec list isn't empty
+python -m ipykernel install --name=python3 --user > $null # Configure the IPython kernel
+python -m jupyter kernelspec list > $null                      # Verify kernelspec list isn't empty
 Write-Host "--- ✅ | 2. Post-provisioning - ready to execute notebooks ---"
 
 # Populate data
 Write-Host "Populating data ...."
-jupyter nbconvert --execute --to python --ExecutePreprocessor.timeout=-1 data/create-azure-search.ipynb > $null
+python -m jupyter nbconvert --execute --to python --ExecutePreprocessor.timeout=-1 data/create-azure-search.ipynb > $null
 
 Write-Host "--- ✅ | 3. Post-provisioning - populated data ---"
